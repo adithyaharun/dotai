@@ -16,9 +16,14 @@ mcp/                .mcp.json template
 ## Setup
 
 ```fish
-~/.ai/link.sh            # ADOPT=1 to back up and replace differing real files
+git clone <repo> ~/.ai     # or any directory
+~/.ai/link.sh              # asks: source dir, which profiles to link into
 fish_add_path ~/.ai/bin
 ```
+
+`link.sh` asks for the source directory (default: where the script lives) and which Claude profile directories to link into (detected: `$CLAUDE_CONFIG_DIR`, `~/.claude`, `~/.claude.*`, `~/.claude-*`). Cloned somewhere other than `~/.ai`: it offers a `~/.ai` symlink, because skills, commands, and `.mcp.json` reference `~/.ai/...`.
+
+Non-interactive: `link.sh --yes [--source DIR] [--profile DIR]...`. `ADOPT=1` backs up and replaces real files that differ.
 
 ## Workflow
 
