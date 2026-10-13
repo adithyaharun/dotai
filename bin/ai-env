@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# Resolve layered .env files (keychain:/op:// refs) into the environment, then exec a command.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+usage: ai-env [--check] [--file PATH]... [-- command args...]
+
+Loads, in order (later file wins, pre-existing env always wins):
+  ~/.ai/.env
+  <git root or cwd>/.env        (skip with AI_ENV_NO_PROJECT=1)
+  each --file PATH
+
+Values:
+  KEY=value
+  KEY=keychain:NAME   -> login keychain item, service "ai.NAME"
+  KEY=op://v/i/f      -> 1Password CLI (only if `op` is installed)
+
+Default command: claude
+--check  print each key and whether it resolved; never prints values
+EOF
+}
+
+AI_HOME="${AI_HOME:-$HOME/.ai}"
+CHECK=0
+EXTRA_FILES=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check) CHECK=1; shift ;;
+    --file) EXTRA_FILES+=("$2"); shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
+
+FILES=("$AI_HOME/.env")
+if [ "${AI_ENV_NO_PROJECT:-0}" != "1" ]; then
+  root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  [ "$root/.env" != "$AI_HOME/.env" ] && FILES+=("$root/.env")
+fi
+[ ${#EXTRA_FILES[@]} -gt 0 ] && FILES+=("${EXTRA_FILES[@]}")
+
+PRESET=" $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | tr '\n' ' ') "
+
+resolve() {
+  local v=$1
+  case "$v" in
+    keychain:*)
+      security find-generic-password -a "$USER" -s "ai.${v#keychain:}" -w 2>/dev/null ;;
+    op://*)
+      command -v op >/dev/null 2>&1 && op read "$v" 2>/dev/null ;;
+    *) printf '%s' "$v" ;;
+  esac
+}
+
+for f in "${FILES[@]}"; do
+  [ -f "$f" ] || continue
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    case "$line" in ''|'#'*) continue ;; esac
+    line="${line#export }"
+    key="${line%%=*}"
+    val="${line#*=}"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    case "$val" in
+      \"*\") val="${val:1:${#val}-2}" ;;
+      \'*\') val="${val:1:${#val}-2}" ;;
+    esac
+    case "$PRESET" in *" $key "*) [ $CHECK = 1 ] && echo "  = $key (from shell, $f ignored)"; continue ;; esac
+    if out="$(resolve "$val")" && [ -n "$out" ]; then
+      export "$key=$out"
+      [ $CHECK = 1 ] && echo "  ✓ $key ($f)"
+    else
+      case "$val" in keychain:*|op://*) ref="${val%%:*}" ;; *) ref="empty" ;; esac
+      [ $CHECK = 1 ] && echo "  ✗ $key unresolved ($ref, $f)" >&2
+    fi
+  done < "$f"
+done
+
+[ $CHECK = 1 ] && exit 0
+[ $# -eq 0 ] && set -- claude
+exec "$@"

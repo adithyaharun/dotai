@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headersHelper": "$HOME/.ai/bin/ai-secret headers 'Authorization=Bearer {CONTEXT7_API_KEY}'"
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headersHelper": "printf '{\"Authorization\":\"Bearer %s\"}' \"$(gh auth token)\""
+    },
+    "gitlab": {
+      "command": "npx",
+      "args": ["-y", "@zereight/mcp-gitlab"],
+      "env": {
+        "GITLAB_PERSONAL_ACCESS_TOKEN": "${GITLAB_TOKEN}",
+        "GITLAB_API_URL": "${GITLAB_API_URL:-https://gitlab.com/api/v4}"
+      }
+    },
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp"
+    },
+    "figma": {
+      "type": "http",
+      "url": "https://mcp.figma.com/mcp"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}

@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Print forge facts for the current repo as KEY=value lines.
+set -euo pipefail
+
+remote="${1:-origin}"
+url="$(git remote get-url "$remote" 2>/dev/null || true)"
+host="$(printf '%s' "$url" | sed -E 's#^[a-z+]+://([^@/]+@)?##; s#^[^@]+@##; s#[:/].*##')"
+path="$(printf '%s' "$url" | sed -E 's#^[a-z+]+://[^/]+/##; s#^[^@]+@[^:]+:##; s#\.git$##')"
+
+forge=unknown; cli=""
+case "$host" in
+  *github*) forge=github; cli=gh ;;
+  *gitlab*) forge=gitlab; cli=glab ;;
+  *)
+    if command -v glab >/dev/null 2>&1 && glab auth status --hostname "$host" >/dev/null 2>&1; then forge=gitlab; cli=glab
+    elif command -v gh >/dev/null 2>&1 && gh auth status --hostname "$host" >/dev/null 2>&1; then forge=github; cli=gh
+    fi ;;
+esac
+
+default="$(git symbolic-ref --quiet --short "refs/remotes/$remote/HEAD" 2>/dev/null || true)"
+default="${default#$remote/}"
+if [ -z "$default" ]; then
+  for b in main master develop; do
+    git show-ref --verify --quiet "refs/remotes/$remote/$b" && { default=$b; break; }
+  done
+fi
+
+cli_ok=no
+[ -n "$cli" ] && command -v "$cli" >/dev/null 2>&1 && cli_ok=yes
+
+echo "FORGE=$forge"
+echo "HOST=$host"
+echo "REPO=$path"
+echo "DEFAULT_BRANCH=${default:-unknown}"
+echo "CURRENT_BRANCH=$(git branch --show-current 2>/dev/null)"
+echo "CLI=${cli:-none}"
+echo "CLI_INSTALLED=$cli_ok"
+echo "LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo none)"
