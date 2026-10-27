@@ -32,7 +32,8 @@ bash ~/.claude/skills/telegram-notify/scripts/notify.sh "your message"
 
 Flags (any order, after the message): `--silent` for no-sound delivery (routine
 FYIs; keep sound for things the user is actively waiting on), `--no-context` to
-suppress the auto footer.
+suppress the auto footer, `--buttons "A|B|C"` to attach tap answers (see
+*Asking the user a question*).
 
 The script reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from the environment
 if set, otherwise from the macOS keychain (`ai-secret set TELEGRAM_BOT_TOKEN`,
@@ -99,8 +100,87 @@ the result, or the message will lie. If a task fails partway, still notify — t
 user asked to be told when it's *over*, and "it broke" is the most useful ping
 of all.
 
+## Reading replies
+
+The user can answer from their phone. `read.sh` prints the text messages and
+button taps they sent to the bot. Only the private chat `TELEGRAM_CHAT_ID` counts,
+and only messages its own user sent; groups and other chats are skipped:
+
+```bash
+bash ~/.claude/skills/telegram-notify/scripts/read.sh             # new messages, then mark read
+bash ~/.claude/skills/telegram-notify/scripts/read.sh --wait 1800 # block up to N secs for one
+bash ~/.claude/skills/telegram-notify/scripts/read.sh --peek      # show without marking read
+```
+
+Each message prints as a block; `in reply to:` appears only when the user used
+Telegram's reply on a message, and quotes its first line:
+
+```
+--- 2026-10-26 14:02:11 (message 812)
+in reply to: ❓ Which migration strategy?
+2
+```
+
+Exit codes: `0` messages printed, `3` none (or `--wait` timed out, prints
+`no new messages`), `1` error (missing credentials, network, Telegram 409 when a
+webhook is set or another `read.sh` is already polling). The read offset lives
+in `${XDG_STATE_HOME:-~/.local/state}/telegram-notify/offset`.
+
+**Asking the user a question:** prefer tap buttons. Pass the options with
+`--buttons` (`|`-separated, recommended option first and marked), and lead the
+text with ❓ and the question on its first line:
+
+```bash
+bash ~/.claude/skills/telegram-notify/scripts/notify.sh "❓ *Which migration strategy?*
+Online backfill keeps writes live; offline is faster but needs a 10 min window." \
+  --buttons "Online backfill (Recommended)|Offline with window|Hold off"
+# sent: Telegram notification delivered (message 812, qid 3fa9c1)
+```
+
+Remember the `message` and `qid` from the output; they map the tap back to the
+question. Each button's callback data is `q<qid>:<index>` (index from 0, in
+`--buttons` order). `--qid ID` sets the id yourself (1-40 chars of
+`[A-Za-z0-9_-]`); `--buttons-rows N` sets buttons per row (default: 3 per row,
+1 per row when any label is over 16 chars). Labels can't contain `|`.
+
+When the user taps, `read.sh` answers the tap (the phone shows `Chose: <label>`),
+removes the buttons from the question so it can't be tapped twice, and prints:
+
+```
+--- 2026-10-26 14:02:11 (message 812)
+in reply to: ❓ Which migration strategy?
+button: q3fa9c1:0 Online backfill (Recommended)
+```
+
+or in `--follow`: `TG 2026-10-26 14:02:11 #812 [button q3fa9c1:0] Online backfill (Recommended)`.
+`#812` is the question's message id; the timestamp is when the tap was read.
+Free-text replies still work alongside buttons (the user may type instead of
+tapping), so handle both. Without buttons, number the options in the text.
+Run `read.sh --wait <secs>` as a background Bash command, or rely on a running
+`--follow`, and act on the answer when it arrives. With several open questions
+the qid (buttons) or Telegram's reply (`in reply to:`) maps each answer to its
+question. Run only one `read.sh` at a time. `--peek` shows taps without
+acknowledging them.
+
+**Watching continuously:** Claude runs `read.sh --follow` under the Monitor tool;
+re-arm on expiry. It long-polls forever, marks each batch read, and prints every
+message as one line (each line becomes a notification):
+
+```
+TG 2026-10-26 14:02:11 #812 [re: ❓ Which migration strategy?] 2
+```
+
+`[re: …]` appears only for Telegram replies (first 60 chars of the quoted
+message); newlines in the text become ` / `. Network and API errors are retried
+every 10s (stderr only). `TG-ERROR 409 another poller is running` means another
+poller holds the bot; it retries every 60s. A lock in the state dir allows one
+`--follow` at a time (a second exits `1`), and one-shot `read.sh` refuses to run
+while a watcher is active. `--follow` cannot be combined with `--wait`/`--peek`.
+
 ## Security note
 
 No secret lives in this skill. If the script errors with "missing", tell the user
 to run `~/.ai/bin/ai-secret set TELEGRAM_BOT_TOKEN` and `... set TELEGRAM_CHAT_ID`.
-Never read, print, or echo the token.
+Never read, print, or echo the token. Neither script prints it, and both keep it
+and the chat id out of the process list (curl gets its config on stdin).
+`TELEGRAM_API_BASE` overrides the API host for offline tests only: `https://api.telegram.org` or a loopback `http://127.0.0.1[:port]` / `http://localhost[:port]`; anything else exits 1.
