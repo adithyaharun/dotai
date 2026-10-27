@@ -8,6 +8,7 @@ rules/              always-loaded rules: clarify, diagrams, context7
 agents/             specialist sub-agents
 commands/           slash commands (subdirs namespace: git/pr.md = /git:pr)
 skills/             call-graph, dev-conventions, telegram-notify
+templates/          page templates (test-report.html, the live /test report)
 bin/                ai-env, ai-secret, git-forge, git-changelog
 mcp/                .mcp.json template
 .env.example        secret reference template
@@ -35,6 +36,7 @@ Non-interactive: `link.sh --yes [--source DIR] [--profile DIR]...`. `ADOPT=1` ba
 | Proposal | `/opsx:propose` |
 | Branch | `/git:branch` |
 | Implement | `/opsx:apply` or `/code` |
+| Scenario testing (plan, automate, run, clarity) | `/test <feature\|ticket\|change>` |
 | Tests + review + vuln scan | `/verify` |
 | Commit + push | `/git:push` |
 | PR / MR | `/git:pr` |

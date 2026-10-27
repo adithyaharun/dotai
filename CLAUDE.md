@@ -20,7 +20,7 @@ When interacting with Cloudflare, use the cf CLI unless the project has a Wrangl
 
 # Workflow
 
-- Discovery before work: `/analyze`. Bugs: `/investigate`. Free-form thinking: `/opsx:explore`.
+- Discovery before work: `/analyze`. Bugs: `/investigate`. Free-form thinking: `/opsx:explore`. Test a feature or app with scenarios: `/test`.
 - Build a feature or fix end to end: `/dev` (proposal, `/git:branch`, implement + tests, `/verify`, `/git:push`, `/git:pr`, `/opsx:archive` in the same PR before merge, `/git:release` only when asked).
 - Git naming, commit, PR/MR, and release rules live in the `dev-conventions` skill.
 - Secrets: never inline in `.mcp.json`. Use `${VAR}` (resolved by `~/.ai/bin/ai-env`) or `headersHelper` with `~/.ai/bin/ai-secret`.
