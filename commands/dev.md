@@ -1,6 +1,6 @@
 ---
 name: "Dev"
-description: "End-to-end feature/fix workflow: proposal, branch, implement + tests, verify, push, PR/MR, optional release. Gates before every outward-facing step."
+description: "End-to-end feature/fix workflow: proposal, branch, implement + tests, verify, push, PR/MR, archive the OpenSpec change before merge, optional release. Gates before every outward-facing step."
 argument-hint: "<request | ticket | openspec-change-name> [--release X.Y.Z] [--auto]"
 allowed-tools: Read, Grep, Glob, Bash, Agent, AskUserQuestion, Skill, Write, Edit
 ---
@@ -54,14 +54,25 @@ Run `/git:push`. Gate unless `--auto`.
 
 Run `/git:pr`. Always gated: show title and body, ask Create / Create as draft / Edit / Skip.
 
-## Phase 8 — Release (only when asked)
+## Phase 8 — Archive, then merge
+
+The OpenSpec change is archived inside the same PR/MR, never in a follow-up PR. Code and main specs land in one merge.
+
+1. Wait until review is done and CI is green. Archive last: a review fix after archiving must edit `openspec/specs/` directly.
+2. Run `/opsx:archive <change>` on the feature branch with spec sync. Replace any `TBD` Purpose placeholder in new `openspec/specs/*/spec.md`. Run `openspec validate --all --strict`.
+3. Commit `chore(openspec): archive <change>` and push (gated unless `--auto`). Wait for CI.
+4. Merge only when the user asks. Use the repo's merge style (squash by default).
+
+PR/MR not merged in this run: tell the user to run this phase before merging. No proposal (tiny): skip.
+
+## Phase 9 — Release (only when asked)
 
 Only when the user asked for a release (`--release`, or in words). Run `/git:release [version]`. It asks for the version when none was given.
 
 ## Finish
 
 - `/note-write` when the work surfaced a non-obvious decision or constraint.
-- Proposal fully done and merged: suggest `/opsx:archive`.
+- Change not archived yet: remind that Phase 8 runs before merge.
 - User asked for a ping: `telegram-notify`.
 - Final summary: branch, commits, PR/MR URL, test result, release URL (if any).
 
